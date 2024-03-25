@@ -9,6 +9,7 @@ import sys
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter.constants import *
+import threading
 import os.path
 import numpy as np
 
@@ -145,7 +146,8 @@ class Toplevel1:
         self.Labelframe2.configure(highlightbackground="#d9d9d9")
         self.Labelframe2.configure(highlightcolor="#000000")
 
-        self.Buttonaqui = tk.Button(self.Labelframe2, command=self.acquisition)
+        self.acquisitionThread = None
+        self.Buttonaqui = tk.Button(self.Labelframe2, command=self.onClickAcqui)
         self.Buttonaqui.place(x=330, y=33, height=50, width=190, bordermode='ignore')
 
         self.Buttonaqui.configure(activebackground="#d9d9d9")
@@ -408,6 +410,13 @@ class Toplevel1:
         self.Label1.configure(text='''Balance app''')
 
 #Modifié=====
+
+    def onClickAcqui(self):
+        if(self.acquisitionThread and self.acquisitionThread.is_alive()):
+            return # we can't start a new acquisition now, another is running
+        self.acquisitionThread = threading.Thread(target=self.acquisition)
+        self.acquisitionThread.start()
+    
     def acquisition(self):
         forces = []
         position = []
@@ -464,7 +473,6 @@ class Toplevel1:
             self.ax.set_ylabel('Indéterminé', fontsize=10)
         
         self.canvas.draw()
-        self.top.update_idletasks()
 #======
 
 def start_up():
