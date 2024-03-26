@@ -113,12 +113,16 @@ class Toplevel1:
         self.masse = 0
         self.is_stable = False
 
-        port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
+        ports_to_try = ['COM4', '/dev/cu.usbmodem1201']  # remplacer avec le port série nécessaire
         baud_rate = 115200
-        try:
-            self.arduino = serial.Serial(port, baud_rate)
-        except serial.SerialException:
-            self.arduino = None
+        self.arduino = None
+        for port in ports_to_try:
+            try:
+                self.arduino = serial.Serial(port, baud_rate)
+                break
+            except serial.SerialException:
+                 pass
+
         self.x_temps = 0
         self.y_forces = 0
         self.y_positions = 0
@@ -225,7 +229,7 @@ class Toplevel1:
         precision_options = [f"{opt} dec" for opt in range(MAX_PRECISION)]
         for opt in precision_options:
             self.Listbox2.insert(tk.END, opt)
-        def on_selectVirgule(event2):
+        def on_selectVirgule(e):
             selection = self.Listbox2.curselection()
             if len(selection) == 1:
                 self.selected_precision = selection[0]
@@ -243,11 +247,9 @@ class Toplevel1:
         self.Listbox1.configure(highlightcolor="#000000")
         self.Listbox1.configure(selectbackground="#d9d9d9")
         self.Listbox1.configure(selectforeground="black")
-        self.Listbox1.insert(tk.END, "Gramme")
-        self.Listbox1.insert(tk.END, "lbs")
-        self.Listbox1.insert(tk.END, "Newton")
-        self.Listbox1.insert(tk.END, "Once")
-        def on_selectPoids(event):
+        for unit in unit_names:
+            self.Listbox1.insert(tk.END, unit)
+        def on_selectPoids(e):
             selection = self.Listbox2.curselection()
             if len(selection) == 1:
                 self.selected_unit_index = selection[0]
@@ -544,6 +546,10 @@ class Toplevel1:
             if self.che86.get() == 1:
                 nombrepiece = self.masse//coin_masses[self.selected_coin_index]
                 self.Label2_1.configure(text=nombrepiece)
+                if self.is_stable is True:
+                        self.Label2_1.configure(background="green")
+                else:
+                        self.Label2_1.configure(background="red")
             
             # unitées
             mass_converted = self.masse * unit_rates[self.selected_unit_index]
