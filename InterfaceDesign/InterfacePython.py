@@ -67,6 +67,7 @@ class Toplevel1:
         #Modifié
 
         self.masse = 0
+        self.tension = 0
         self.is_stable = False
 
         port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
@@ -423,13 +424,14 @@ class Toplevel1:
         self.acquisition_thread.start()
     
     def parse_arduino_msg(self, data_txt):
-        pattern = r"masse:(.+),stable:(.+)"
+        pattern = r"masse:(.+),tension:(.+),stable:(.+)"
         match = re.search(pattern, data_txt)
 
         # If match is found, extract values and return them
         if match:
             self.masse = float(match.group(1))
             self.is_stable = match.group(2)=='1'
+            self.tension = float(match.group(3))
     
     def read_data_and_update(self):
         while(True):

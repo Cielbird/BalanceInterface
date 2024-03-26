@@ -1,6 +1,7 @@
 # Messages Arduino-PC
-"masse: [taredMass],stable: [isStable]"
+"masse:[taredMass],tension:[tension],stable:[isStable]"
 - taredMass est moyenné
+- tension est la tension du capteur de postion, apres l'ampli
 - isStable est soit 0 soit 1
 - message envoyé à chaque 20ms
 
