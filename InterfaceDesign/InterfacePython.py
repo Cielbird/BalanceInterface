@@ -8,13 +8,14 @@
 import sys
 import tkinter as tk
 import tkinter.ttk as ttk
-from tkinter.constants import *
-import serial
+#from tkinter.constants import *
 import re
 import threading
 import os.path
-import numpy as np
 import time
+import numpy as np
+import serial
+import InterfacePython_support
 
 #Modifié
 import matplotlib.pyplot as plt
@@ -22,15 +23,14 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 _location = os.path.dirname(__file__)
 
-import InterfacePython_support
 
-_bgcolor = '#d9d9d9'
-_fgcolor = '#000000'
-_tabfg1 = 'black' 
-_tabfg2 = 'white' 
-_bgmode = 'light' 
-_tabbg1 = '#d9d9d9' 
-_tabbg2 = 'gray40'
+_BGCOLOR = '#d9d9d9'
+_FGCOLOR = '#000000'
+_TABTG1 = 'black'
+_TABFG2 = 'white'
+_BGMODE = 'light'
+_TABBG1 = '#d9d9d9'
+_TABBG2 = 'gray40'
 
 
 # units that can be used
@@ -66,18 +66,18 @@ coin_masses = [
     7.3
 ]
 # max number of digits to allow in display
-max_precision = 3
+MAX_PRECISION = 3
 
 #data ={'masse': 100, 'tension': 1.445, 'stable': True}
 
 def position_tension(tension_ampli):
-        C1 = 5813.9
-        C2 = 198.24
-        C3 = 0.60750
-        
-        tension_non_ampli = (tension_ampli/2.4) + 0.4
-        position = np.sqrt((C1/(tension_non_ampli - C3))**(2/3) - C2)
-        return position
+    c1 = 5813.9
+    c2 = 198.24
+    c3 = 0.60750
+    
+    tension_non_ampli = (tension_ampli/2.4) + 0.4
+    position = np.sqrt((c1/(tension_non_ampli - c3))**(2.0/3.0) - c2)
+    return position
 
 class Toplevel1:
     def __init__(self, top=None):
@@ -99,7 +99,6 @@ class Toplevel1:
         self.top = top
         self.che86 = tk.IntVar()
         self.labelMasse = tk.StringVar()
-        
         self.graph_choice = 0
         self.selected_coin_index = 0
         self.selected_unit_index = 0
@@ -111,7 +110,7 @@ class Toplevel1:
         self.is_stable = False
 
         port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
-        baud_rate = 115200 
+        baud_rate = 115200
         try:
             self.arduino = serial.Serial(port, baud_rate)
         except serial.SerialException:
@@ -147,11 +146,9 @@ class Toplevel1:
         self.Listbox3.insert(tk.END, "Force en fonction du temps")
         self.Listbox3.insert(tk.END, "Position en fonction du temps")
         def on_selectgraph(event):
-                selected_item = self.Listbox3.get(self.Listbox3.curselection())
-                if selected_item == "Force en fonction du temps":
-                        self.graph_choice = 1
-                elif selected_item == "Position en fonction du temps":
-                        self.graph_choice = 2
+                selection = self.Listbox3.curselection()
+                if(len(selection) == 1):
+                    self.graph_choice = selection[0]
         self.Listbox3.bind("<<ListboxSelect>>", on_selectgraph)
         #=====
 
@@ -172,11 +169,11 @@ class Toplevel1:
         #Modifié=====
         # Create a Matplotlib figure
         self.fig, self.ax = plt.subplots(figsize=(5, 3.1))
-        self.ax.plot([1, 2, 3, 4], [1, 4, 2, 3], color='black', linewidth=1.5) 
+        self.ax.plot([1, 2, 3, 4], [1, 4, 2, 3], color='black', linewidth=1.5)
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
         self.ax.set_xlabel('Indéterminé', fontsize=10)
         self.ax.set_ylabel('Indéterminé', fontsize=10)
-        
+
         # Embed the Matplotlib plot into Tkinter canvas
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.Canvas1)
         self.fig.tight_layout()
@@ -221,11 +218,13 @@ class Toplevel1:
         self.Listbox2.configure(highlightcolor="#000000")
         self.Listbox2.configure(selectbackground="#d9d9d9")
         self.Listbox2.configure(selectforeground="black")
-        precision_options = [f"{opt} dec" for opt in range(max_precision)]
+        precision_options = [f"{opt} dec" for opt in range(MAX_PRECISION)]
         for opt in precision_options:
             self.Listbox2.insert(tk.END, opt)
         def on_selectVirgule(event2):
-            self.selected_precision = self.Listbox2.curselection()[0]
+            selection = self.Listbox2.curselection()
+            if len(selection) == 1:
+                self.selected_precision = selection[0]
         self.Listbox2.bind("<<ListboxSelect>>", on_selectVirgule)
 
         #première des deux listesbox ou la masse UNITÉ
@@ -245,7 +244,9 @@ class Toplevel1:
         self.Listbox1.insert(tk.END, "Newton")
         self.Listbox1.insert(tk.END, "Once")
         def on_selectPoids(event):
-            self.selected_unit_index = self.Listbox1.get(self.Listbox1.curselection())
+            selection = self.Listbox2.curselection()
+            if len(selection) == 1:
+                self.selected_unit_index = selection[0]
         self.Listbox1.bind("<<ListboxSelect>>", on_selectPoids)
 
         #masse couleur set ou pas set
@@ -369,7 +370,9 @@ class Toplevel1:
         for coin in coin_names:
             self.Listbox4.insert(tk.END, coin)
         def on_selectnbrpiece(evenement):
-            self.selected_coin_index = self.Listbox4.curselection()[0]
+            selection = self.Listbox4.curselection()
+            if(len(selection) == 1):
+                self.selected_coin_index = selection[0]
         self.Listbox4.bind("<<ListboxSelect>>", on_selectnbrpiece)
                 
 
@@ -487,10 +490,10 @@ class Toplevel1:
            
         self.ax.clear()
           
-        if  self.graph_choice == 1:
+        if  self.graph_choice == 0:
             x, y = self.x_temps, self.y_forces
             
-        elif self.graph_choice == 2:
+        elif self.graph_choice == 1:
             x, y = self.x_temps, self.y_positions
         else:
             x, y = [0],[0]
@@ -503,13 +506,13 @@ class Toplevel1:
 
         plt.grid(True, which='both', linestyle='--', alpha=0.7, linewidth=0.5)
         
-        if self.graph_choice == 1:
+        if self.graph_choice == 0:
         #     self.ax.set_xlim(min(x), max(x))
         #     self.ax.set_ylim(min(y), max(y))
             self.ax.set_xlabel('temps [s]', fontsize=10)
             self.ax.set_ylabel('Force [N]', fontsize=10)
             
-        elif self.graph_choice == 2:
+        elif self.graph_choice == 1:
         #     self.ax.set_xlim(min(x), max(x))
         #     self.ax.set_ylim(min(y), max(y))
             self.ax.set_xlabel('temps [s]', fontsize=10)
