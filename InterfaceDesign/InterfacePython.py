@@ -14,6 +14,7 @@ import re
 import threading
 import os.path
 import numpy as np
+import time
 
 #Modifié
 import matplotlib.pyplot as plt
@@ -29,7 +30,43 @@ _tabfg1 = 'black'
 _tabfg2 = 'white' 
 _bgmode = 'light' 
 _tabbg1 = '#d9d9d9' 
-_tabbg2 = 'gray40' 
+_tabbg2 = 'gray40'
+
+
+# units that can be used
+unit_names = [
+    "Gramme",
+    "Lbs",
+    "Newton",
+    "Once"
+]
+# conversion rate in units per gram
+unit_rates = [
+    1,
+    2.20462,
+    9.80665,
+    0.035274
+]
+# coins that can be used for counting or identifying
+coin_names = [
+    "1 cent",
+    "2 cent",
+    "10 cent",
+    "20 cent",
+    "1 dollar",
+    "2 dollars"
+]
+# weights of each coin
+coin_masses = [
+    2.35,
+    3.95,
+    1.75,
+    4.4,
+    7,
+    7.3
+]
+# max number of digits to allow in display
+max_precision = 3
 
 #data ={'masse': 100, 'tension': 1.445, 'stable': True}
 
@@ -64,6 +101,9 @@ class Toplevel1:
         self.labelMasse = tk.StringVar()
         
         self.graph_choice = 0
+        self.selected_coin_index = 0
+        self.selected_unit_index = 0
+        self.selected_precision = 0
         #Modifié
 
         self.masse = 0
@@ -72,11 +112,13 @@ class Toplevel1:
 
         port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
         baud_rate = 115200 
-        self.arduino = serial.Serial(port, baud_rate)
-
-        self.x = 0
-        self.yforce = 0
-        self.yposition = 0
+        try:
+            self.arduino = serial.Serial(port, baud_rate)
+        except serial.SerialException:
+            self.arduino = None
+        self.x_temps = 0
+        self.y_forces = 0
+        self.y_positions = 0
 
         self.Labelframe3 = tk.LabelFrame(self.top)
         self.Labelframe3.place(x=260, y=158, height=389, width=530)
@@ -108,10 +150,8 @@ class Toplevel1:
                 selected_item = self.Listbox3.get(self.Listbox3.curselection())
                 if selected_item == "Force en fonction du temps":
                         self.graph_choice = 1
-                        self.spectrum_viewer_fcn()
                 elif selected_item == "Position en fonction du temps":
                         self.graph_choice = 2
-                        self.spectrum_viewer_fcn()
         self.Listbox3.bind("<<ListboxSelect>>", on_selectgraph)
         #=====
 
@@ -156,8 +196,6 @@ class Toplevel1:
         self.Labelframe2.configure(highlightbackground="#d9d9d9")
         self.Labelframe2.configure(highlightcolor="#000000")
 
-        self.acquisition_thread = threading.Thread(target=self.read_data_and_update) # used to fetch data in the background
-        self.acquisition_thread.start()
         self.Buttonaqui = tk.Button(self.Labelframe2)#, command=self.onClickAcqui) TODO reenable this button
         self.Buttonaqui.place(x=330, y=33, height=50, width=190, bordermode='ignore')
 
@@ -183,20 +221,11 @@ class Toplevel1:
         self.Listbox2.configure(highlightcolor="#000000")
         self.Listbox2.configure(selectbackground="#d9d9d9")
         self.Listbox2.configure(selectforeground="black")
-        self.Listbox2.insert(tk.END, "0 decimale")
-        self.Listbox2.insert(tk.END, "1 decimales")
-        self.Listbox2.insert(tk.END, "2 decimales")
-        self.Listbox2.insert(tk.END, "3 decimales")
+        precision_options = [f"{opt} dec" for opt in range(max_precision)]
+        for opt in precision_options:
+            self.Listbox2.insert(tk.END, opt)
         def on_selectVirgule(event2):
-                selected_itemVirgule = self.Listbox2.get(self.Listbox2.curselection())
-                if selected_itemVirgule == "0 decimale":
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 0)))
-                elif selected_itemVirgule == "1 decimales":
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 1)))
-                elif selected_itemVirgule == "2 decimales":
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 2)))
-                elif selected_itemVirgule == "3 decimales":
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 3)))
+            self.selected_precision = self.Listbox2.curselection()[0]
         self.Listbox2.bind("<<ListboxSelect>>", on_selectVirgule)
 
         #première des deux listesbox ou la masse UNITÉ
@@ -216,19 +245,7 @@ class Toplevel1:
         self.Listbox1.insert(tk.END, "Newton")
         self.Listbox1.insert(tk.END, "Once")
         def on_selectPoids(event):
-                selected_item = self.Listbox1.get(self.Listbox1.curselection())
-                if selected_item == "Gramme":
-                        self.labelMasse = data["masse"]
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 3)))
-                elif selected_item == "lbs":
-                        self.labelMasse = data["masse"] * 2.20462
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 3)))
-                elif selected_item == "Newton":
-                        self.labelMasse = data["masse"] * 9.80665
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 3)))
-                elif selected_item == "Once":
-                        self.labelMasse = data["masse"] * 0.035274
-                        self.Label2.configure(text=str(round(float(self.labelMasse), 3)))
+            self.selected_unit_index = self.Listbox1.get(self.Listbox1.curselection())
         self.Listbox1.bind("<<ListboxSelect>>", on_selectPoids)
 
         #masse couleur set ou pas set
@@ -265,7 +282,7 @@ class Toplevel1:
         self.Button2.configure(highlightcolor="#000000")
         self.Button2.configure(text='''Étalonner''')
 
-        self.Button1 = tk.Button(self.Labelframe1)
+        self.Button1 = tk.Button(self.Labelframe1, command=self.on_click_tare)
         self.Button1.place(x=13, y=33, height=36, width=207, bordermode='ignore')
 
         self.Button1.configure(activebackground="#d9d9d9")
@@ -349,34 +366,10 @@ class Toplevel1:
         self.Listbox4.configure(highlightcolor="#000000")
         self.Listbox4.configure(selectbackground="#d9d9d9")
         self.Listbox4.configure(selectforeground="black")
-        self.Listbox4.insert(tk.END, "1 cent")
-        self.Listbox4.insert(tk.END, "5 cents")
-        self.Listbox4.insert(tk.END, "10 cents")
-        self.Listbox4.insert(tk.END, "25 cents")
-        self.Listbox4.insert(tk.END, "1 dollars")
-        self.Listbox4.insert(tk.END, "2 dollars")
-
-
+        for coin in coin_names:
+            self.Listbox4.insert(tk.END, coin)
         def on_selectnbrpiece(evenement):
-                nombrepiece = ''
-                selected_item = self.Listbox4.get(self.Listbox4.curselection())      
-                if self.che86.get() == 1:
-                        if selected_item == "1 cent": 
-                                nombrepiece = self.masse//2.35
-                        elif selected_item == "5 cents": 
-                                nombrepiece = self.masse//3.95
-                        elif selected_item == "10 cents": 
-                                nombrepiece = self.masse//1.75
-                        elif selected_item == "25 cents": 
-                                nombrepiece = self.masse//4.4
-                        elif selected_item == "1 dollars": 
-                                nombrepiece = self.masse//7 
-                        elif selected_item == "2 dollars": 
-                                nombrepiece = self.masse//7.3    
-                       
-                
-                self.Label2_1.configure(text= nombrepiece)    
-                       
+            self.selected_coin_index = self.Listbox4.curselection()[0]
         self.Listbox4.bind("<<ListboxSelect>>", on_selectnbrpiece)
                 
 
@@ -415,9 +408,16 @@ class Toplevel1:
         self.Label1.configure(highlightcolor="#000000")
         self.Label1.configure(text='''Balance app''')
 
+        
+        self.acquisition_thread = threading.Thread(target=self.read_data_and_update) # used to fetch data in the background
+        self.acquisition_thread.start()
+
 #Modifié=====
 
-    def onClickAcqui(self):
+    def on_click_tare(self):
+        pass
+
+    def on_click_acqui(self):
         if(self.acquisition_thread and self.acquisition_thread.is_alive()):
             return # we can't start a new acquisition now, another is running
         self.acquisition_thread = threading.Thread(target=self.acquisition)
@@ -428,36 +428,59 @@ class Toplevel1:
         match = re.search(pattern, data_txt)
 
         # If match is found, extract values and return them
-        if match:
-            self.masse = float(match.group(1))
-            self.is_stable = match.group(2)=='1'
-            self.tension = float(match.group(3))
+        try:
+            if match:
+                self.masse = float(match.group(1))
+                self.tension = float(match.group(2))
+                self.is_stable = match.group(3)=='1'
+        except:
+            print(data_txt)
     
     def read_data_and_update(self):
+        self.y_forces = []
+        self.y_positions = []
+        self.x_temps = []
+        t = 0
+        dt = 20*10**-3 # l'arduino update à chaque 10 ms
         while(True):
-            data_txt = self.arduino.readline().decode().strip()
+            if not self.arduino:
+                  continue
+            data_txt = None
+            data = self.arduino.read_all().decode().strip()  # Read all available data and decode it
+            if data:
+                lines = data.split('\n')  # Split data into lines
+                data_txt = lines[-1]  # Get the last line
+            else:
+                continue
             self.parse_arduino_msg(data_txt)
             if self.is_stable == True:
                     self.Label2.configure(background="green")
             else:
                     self.Label2.configure(background="red")
             self.Label2.configure(text=str(self.masse))#modifié
+            
+            t += dt
+            self.x_temps.append(t)
+            force = float(self.masse)*9.806
+            self.y_forces.append(force)
+            pos = position_tension(float(self.tension))
+            self.y_positions.append(pos)
 
-#    def acquisition(self):
-#        forces = []
-#        position = []
-#        temps = []
-#        i = 0
-#        dt = 20*10**-3
-#        while len(forces) != 1000:
-#                i += dt
-#                temps.append(i)
-#                forces.append(float(data['masse'])*9.806)
-#                position.append(position_tension(float(data["tension"])))
-#                self.x = temps
-#                self.yforce = forces
-#                self.yposition = position
-#                self.spectrum_viewer_fcn()
+            if(len(self.x_temps) > 300):
+                self.x_temps.pop(0)
+                self.y_forces.pop(0)
+                self.y_positions.pop(0)
+
+            # coin counting
+            if self.che86.get() == 1:
+                nombrepiece = self.masse//coin_masses
+                self.Label2_1.configure(text=nombrepiece)
+            
+            # units
+            self.labelMasse = data["masse"] * unit_rates[self.selected_unit_index]
+            self.Label2.configure(text=str(round(float(self.labelMasse), self.selected_precision)))
+
+            self.spectrum_viewer_fcn()
 
 
     def spectrum_viewer_fcn(self):
@@ -465,12 +488,12 @@ class Toplevel1:
         self.ax.clear()
           
         if  self.graph_choice == 1:
-            x, y = self.x, self.yforce
+            x, y = self.x_temps, self.y_forces
             
         elif self.graph_choice == 2:
-            x, y = self.x, self.yposition
+            x, y = self.x_temps, self.y_positions
         else:
-            x, y = [0,0]
+            x, y = [0],[0]
         
         self.ax.plot(x, y, color='black', linewidth=1.5)
         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
