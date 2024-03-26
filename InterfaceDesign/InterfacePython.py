@@ -108,8 +108,9 @@ class Toplevel1:
         self.selected_precision = 0
         #Modifié
 
+        self.v_amp = 0
+        self.v_pos = 0
         self.masse = 0
-        self.tension = 0
         self.is_stable = False
 
         port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
@@ -443,16 +444,27 @@ class Toplevel1:
         self.send_tare_command()
 
     def on_click_etalonner(self):
-        messagebox.showinfo("Étape 1", "Poser rien sur la balance")
-        #ampV1 = self.tensionAmp;
-        messagebox.showinfo("Étape 2", "Poser 1g sur la balance")
-        messagebox.showinfo("Étape 3", "Poser 2g sur la balance")
-        messagebox.showinfo("Étape 4", "Poser 10g sur la balance")
-        messagebox.showinfo("Étape 5", "Poser 20g sur la balance")
-        #ampV2 = self.tensionAmp;
-        #calibConstA = 20.0 / (ampV2 - ampV1);
-        #calibConstB = -ampV1 * calibConstA;
-        messagebox.showinfo("Étape 6", "Poser 50g sur la balance")
+        masses = [0, 1, 2, 10, 20, 50]
+        v_amps = []
+        for i, mass in enumerate(masses):
+            if(i==0):
+                mass_str = "rien"
+            else:
+                mass_str = f"{mass}g"
+            messagebox.showinfo(f"Étape {i}", f"Poser {mass_str} sur la balance")
+            v_amps.append(self.v_amp)
+
+        # créer un graphique
+        plt.plot(masses, v_amps)
+        plt.xlabel('masses')
+        plt.ylabel('tensions')
+        plt.title('étalonnage')
+        plt.show()
+
+        # calulate with 0g and 20g
+        A = 20.0 / (v_amps[4] - v_amps[0])
+        B = -v_amps[0] * A
+        self.send_calib_command(A, B)
         messagebox.showinfo("Étalonnage terminé", "L'étalonnage à été effectué avec success")
 
     def on_click_acqui(self):
@@ -461,17 +473,20 @@ class Toplevel1:
     def parse_arduino_msg(self, data_txt):
         """
         Retourne un dictionaire des données qui se trouve dans le message d'arduino
-        format: {"masse":masse, "tension":tension, "is_stable":is_stable}
+        format: {"v_amp":tension de l'ampli de courant, "v_pos":tension du capteur de position, 
+                 "taredMass": masse calculé par l'arduino. taré et étalonné
+                    "stable":True si le regulateur est stable}
         """
-        pattern = r"masse:(.+),tension:(.+),stable:(.+)"
+        pattern = r"v_amp:(.+),v_pos:(.+),stable:(.+)"
         match = re.search(pattern, data_txt)
 
         # If match is found, extract values and return them
         if match:
-            masse = float(match.group(1))
-            tension = float(match.group(2))
-            is_stable = match.group(3)=='1'
-            return {"masse":masse, "tension":tension, "is_stable":is_stable}
+            v_amp = float(match.group(1))
+            v_pos = float(match.group(2))
+            taredMass = float(match.group(3))
+            stable = match.group(3)=='1'
+            return {"v_amp":v_amp, "v_pos":v_pos, "taredMass":taredMass, "stable":stable}
         return None
 
     def read_latest_line(self):
@@ -496,15 +511,18 @@ class Toplevel1:
         t = 0
         dt = 20*10**-3 # l'arduino update à chaque 20 ms
         while(True):
-            if not self.arduino:
-                  continue
-            data_txt = self.read_latest_line()
-            data = self.parse_arduino_msg(data_txt)
+            if self.arduino:
+                data_txt = self.read_latest_line()
+                data = self.parse_arduino_msg(data_txt)
+            else:
+                # PLACEHOLDER
+                data = {"v_amp":2.45,"v_pos":1.23,"taredMass":32.3,"stable":True}
             if not data:
                  continue
-            self.masse = data["masse"]
-            self.tension = data["tension"]
-            self.is_stable = data["is_stable"]
+            self.v_amp = data["v_amp"]
+            self.v_pos = data["v_pos"]
+            self.masse = data["taredMass"]
+            self.is_stable = data["stable"]
             if self.is_stable is True:
                     self.Label2.configure(background="green")
             else:
@@ -515,7 +533,7 @@ class Toplevel1:
             self.x_temps.append(t)
             force = float(self.masse)*9.806
             self.y_forces.append(force)
-            pos = position_tension(float(self.tension))
+            pos = position_tension(float(self.v_pos))
             self.y_positions.append(pos)
 
             if(len(self.x_temps) > 300):
