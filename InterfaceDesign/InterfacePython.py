@@ -484,9 +484,9 @@ class Toplevel1:
         if match:
             v_amp = float(match.group(1))
             v_pos = float(match.group(2))
-            taredMass = float(match.group(3))
+            tared_mass = float(match.group(3))
             stable = match.group(3)=='1'
-            return {"v_amp":v_amp, "v_pos":v_pos, "taredMass":taredMass, "stable":stable}
+            return {"v_amp":v_amp, "v_pos":v_pos, "taredMass":tared_mass, "stable":stable}
         return None
 
     def read_latest_line(self):
@@ -508,8 +508,7 @@ class Toplevel1:
         self.y_forces = []
         self.y_positions = []
         self.x_temps = []
-        t = 0
-        dt = 20*10**-3 # l'arduino update à chaque 20 ms
+        start_t = time.time()
         while(True):
             if self.arduino:
                 data_txt = self.read_latest_line()
@@ -529,7 +528,7 @@ class Toplevel1:
                     self.Label2.configure(background="red")
             self.Label2.configure(text=str(self.masse))#modifié
             
-            t += dt
+            t = time.time() - start_t
             self.x_temps.append(t)
             force = float(self.masse)*9.806
             self.y_forces.append(force)
@@ -543,7 +542,7 @@ class Toplevel1:
 
             # comptage de pièces
             if self.che86.get() == 1:
-                nombrepiece = self.masse//coin_masses
+                nombrepiece = self.masse//coin_masses[self.selected_coin_index]
                 self.Label2_1.configure(text=nombrepiece)
             
             # unitées
