@@ -2,16 +2,16 @@ import serial
 import re
 
 def parse_arduino_msg(data_txt):
-    pattern = r"masse: (.+),tension position: (.+)"
+    pattern = r"masse: (.+),stable: (.+)"
     match = re.search(pattern, data_txt)
 
     # If match is found, extract values and return them
     if match:
-        masse = match.group(1)
-        tension = match.group(2)
-        return {"masse":masse, "tension": tension}
+        masse = float(match.group(1))
+        is_stable = match.group(2)=='1'
+        return {"masse":masse, "stable": is_stable}
     else:
-        return {"masse":0, "tension": 0}
+        return {"masse":0, "stable": False}
 
 
 def read_arduino_data(arduino):

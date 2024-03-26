@@ -9,6 +9,8 @@ import sys
 import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter.constants import *
+import serial
+import re
 import threading
 import os.path
 import numpy as np
@@ -29,7 +31,7 @@ _bgmode = 'light'
 _tabbg1 = '#d9d9d9' 
 _tabbg2 = 'gray40' 
 
-data ={'masse': 100, 'tension': 1.445, 'stable': True}
+#data ={'masse': 100, 'tension': 1.445, 'stable': True}
 
 def position_tension(tension_ampli):
         C1 = 5813.9
@@ -63,6 +65,13 @@ class Toplevel1:
         
         self.graph_choice = 0
         #Modifié
+
+        self.masse = 0
+        self.is_stable = False
+
+        port = '/dev/cu.usbmodem1201'  # remplacer avec le port série nécessaire
+        baud_rate = 115200 
+        self.arduino = serial.Serial(port, baud_rate)
 
         self.x = 0
         self.yforce = 0
@@ -146,8 +155,9 @@ class Toplevel1:
         self.Labelframe2.configure(highlightbackground="#d9d9d9")
         self.Labelframe2.configure(highlightcolor="#000000")
 
-        self.acquisitionThread = None
-        self.Buttonaqui = tk.Button(self.Labelframe2, command=self.onClickAcqui)
+        self.acquisition_thread = threading.Thread(target=self.read_data_and_update) # used to fetch data in the background
+        self.acquisition_thread.start()
+        self.Buttonaqui = tk.Button(self.Labelframe2)#, command=self.onClickAcqui) TODO reenable this button
         self.Buttonaqui.place(x=330, y=33, height=50, width=190, bordermode='ignore')
 
         self.Buttonaqui.configure(activebackground="#d9d9d9")
@@ -225,17 +235,12 @@ class Toplevel1:
         self.Label2.place(x=10, y=24, height=71, width=178, bordermode='ignore')
         self.Label2.configure(activebackground="#d9d9d9")
         self.Label2.configure(activeforeground="black")
-        if data["stable"] == True:
-                self.Label2.configure(background="green")
-        else:
-                self.Label2.configure(background="red")
         self.Label2.configure(compound='left')
         self.Label2.configure(disabledforeground="#a3a3a3")
         self.Label2.configure(font="-family {Segoe UI} -size 12 -weight bold")
         self.Label2.configure(foreground="#000506")
         self.Label2.configure(highlightbackground="#d9d9d9")
         self.Label2.configure(highlightcolor="#000506")
-        self.Label2.configure(text=str(data["masse"]))#modifié
 
         self.Labelframe1 = tk.LabelFrame(self.top)
         self.Labelframe1.place(x=10, y=53, height=393, width=240)
@@ -356,17 +361,17 @@ class Toplevel1:
                 selected_item = self.Listbox4.get(self.Listbox4.curselection())      
                 if self.che86.get() == 1:
                         if selected_item == "1 cent": 
-                                nombrepiece = data['masse']//2.35
+                                nombrepiece = self.masse//2.35
                         elif selected_item == "5 cents": 
-                                nombrepiece = data['masse']//3.95
+                                nombrepiece = self.masse//3.95
                         elif selected_item == "10 cents": 
-                                nombrepiece = data['masse']//1.75
+                                nombrepiece = self.masse//1.75
                         elif selected_item == "25 cents": 
-                                nombrepiece = data['masse']//4.4
+                                nombrepiece = self.masse//4.4
                         elif selected_item == "1 dollars": 
-                                nombrepiece = data['masse']//7 
+                                nombrepiece = self.masse//7 
                         elif selected_item == "2 dollars": 
-                                nombrepiece = data['masse']//7.3    
+                                nombrepiece = self.masse//7.3    
                        
                 
                 self.Label2_1.configure(text= nombrepiece)    
@@ -412,28 +417,47 @@ class Toplevel1:
 #Modifié=====
 
     def onClickAcqui(self):
-        if(self.acquisitionThread and self.acquisitionThread.is_alive()):
+        if(self.acquisition_thread and self.acquisition_thread.is_alive()):
             return # we can't start a new acquisition now, another is running
-        self.acquisitionThread = threading.Thread(target=self.acquisition)
-        self.acquisitionThread.start()
+        self.acquisition_thread = threading.Thread(target=self.acquisition)
+        self.acquisition_thread.start()
     
-    def acquisition(self):
-        forces = []
-        position = []
-        temps = []
-        i = 0
-        dt = 20*10**-3
-        while len(forces) != 1000:
-                i += dt
-                temps.append(i)
-                forces.append(float(data['masse'])*9.806)
-                position.append(position_tension(float(data["tension"])))
-                self.x = temps
-                self.yforce = forces
-                self.yposition = position
-                self.spectrum_viewer_fcn()
-            
-            
+    def parse_arduino_msg(self, data_txt):
+        pattern = r"masse:(.+),stable:(.+)"
+        match = re.search(pattern, data_txt)
+
+        # If match is found, extract values and return them
+        if match:
+            self.masse = float(match.group(1))
+            self.is_stable = match.group(2)=='1'
+    
+    def read_data_and_update(self):
+        while(True):
+            data_txt = self.arduino.readline().decode().strip()
+            self.parse_arduino_msg(data_txt)
+            if self.is_stable == True:
+                    self.Label2.configure(background="green")
+            else:
+                    self.Label2.configure(background="red")
+            self.Label2.configure(text=str(self.masse))#modifié
+
+#    def acquisition(self):
+#        forces = []
+#        position = []
+#        temps = []
+#        i = 0
+#        dt = 20*10**-3
+#        while len(forces) != 1000:
+#                i += dt
+#                temps.append(i)
+#                forces.append(float(data['masse'])*9.806)
+#                position.append(position_tension(float(data["tension"])))
+#                self.x = temps
+#                self.yforce = forces
+#                self.yposition = position
+#                self.spectrum_viewer_fcn()
+
+
     def spectrum_viewer_fcn(self):
            
         self.ax.clear()
