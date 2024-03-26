@@ -71,11 +71,14 @@ MAX_PRECISION = 3
 #data ={'masse': 100, 'tension': 1.445, 'stable': True}
 
 def position_tension(tension_ampli):
+    """
+    Conversion de la tension de l'ampli vers une position
+    """
     c1 = 5813.9
     c2 = 198.24
     c3 = 0.60750
     
-    tension_non_ampli = (tension_ampli/2.4) + 0.4
+    tension_non_ampli = (tension_ampli/2.4) + 0.4 # TODO à voir, je pense que c'est different
     position = np.sqrt((c1/(tension_non_ampli - c3))**(2.0/3.0) - c2)
     return position
 
@@ -98,7 +101,6 @@ class Toplevel1:
 
         self.top = top
         self.che86 = tk.IntVar()
-        self.labelMasse = tk.StringVar()
         self.graph_choice = 0
         self.selected_coin_index = 0
         self.selected_unit_index = 0
@@ -427,36 +429,53 @@ class Toplevel1:
         self.acquisition_thread.start()
     
     def parse_arduino_msg(self, data_txt):
+        """
+        Retourne un dictionaire des données qui se trouve dans le message d'arduino
+        format: {"masse":masse, "tension":tension, "is_stable":is_stable}
+        """
         pattern = r"masse:(.+),tension:(.+),stable:(.+)"
         match = re.search(pattern, data_txt)
 
         # If match is found, extract values and return them
-        try:
-            if match:
-                self.masse = float(match.group(1))
-                self.tension = float(match.group(2))
-                self.is_stable = match.group(3)=='1'
-        except:
-            print(data_txt)
+        if match:
+            masse = float(match.group(1))
+            tension = float(match.group(2))
+            is_stable = match.group(3)=='1'
+            return {"masse":masse, "tension":tension, "is_stable":is_stable}
+        return None
+
+    def read_latest_line(self):
+        """
+        Lit toutes les données provenantes de l'arduino et retourne la dernière ligne.
+        Utile si l'arduino envoie les données plus rapidement que le PC peut les lire.
+        """
+        last_line = None
+        data = self.arduino.read_all().decode().strip()  # Read all available data and decode it
+        if data:
+            lines = data.split('\n')  # Split data into lines
+            last_line = lines[-1]  # Get the last line
+        return last_line
     
     def read_data_and_update(self):
+        """
+        Lit les données de l'arduino et met à jour l'interface
+        """
         self.y_forces = []
         self.y_positions = []
         self.x_temps = []
         t = 0
-        dt = 20*10**-3 # l'arduino update à chaque 10 ms
+        dt = 20*10**-3 # l'arduino update à chaque 20 ms
         while(True):
             if not self.arduino:
                   continue
-            data_txt = None
-            data = self.arduino.read_all().decode().strip()  # Read all available data and decode it
-            if data:
-                lines = data.split('\n')  # Split data into lines
-                data_txt = lines[-1]  # Get the last line
-            else:
-                continue
-            self.parse_arduino_msg(data_txt)
-            if self.is_stable == True:
+            data_txt = self.read_latest_line()
+            data = self.parse_arduino_msg(data_txt)
+            if not data:
+                 continue
+            self.masse = data["masse"]
+            self.tension = data["tension"]
+            self.is_stable = data["is_stable"]
+            if self.is_stable is True:
                     self.Label2.configure(background="green")
             else:
                     self.Label2.configure(background="red")
@@ -474,20 +493,22 @@ class Toplevel1:
                 self.y_forces.pop(0)
                 self.y_positions.pop(0)
 
-            # coin counting
+            # comptage de pièces
             if self.che86.get() == 1:
                 nombrepiece = self.masse//coin_masses
                 self.Label2_1.configure(text=nombrepiece)
             
-            # units
-            self.labelMasse = data["masse"] * unit_rates[self.selected_unit_index]
-            self.Label2.configure(text=str(round(float(self.labelMasse), self.selected_precision)))
+            # unitées
+            mass_converted = self.masse * unit_rates[self.selected_unit_index]
+            self.Label2.configure(text=str(round(mass_converted, self.selected_precision)))
 
-            self.spectrum_viewer_fcn()
+            self.update_graph()
 
 
-    def spectrum_viewer_fcn(self):
-           
+    def update_graph(self):
+        """
+        Met à jour le graphique Matplotlib
+        """
         self.ax.clear()
           
         if  self.graph_choice == 0:
@@ -496,7 +517,7 @@ class Toplevel1:
         elif self.graph_choice == 1:
             x, y = self.x_temps, self.y_positions
         else:
-            x, y = [0],[0]
+            x, y = [0], [0]
         
         self.ax.plot(x, y, color='black', linewidth=1.5)
         plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
@@ -528,6 +549,9 @@ class Toplevel1:
 #======
 
 def start_up():
+    """
+    Appelé lors du début du programe
+    """
     InterfacePython_support.main()
 
 if __name__ == '__main__':
