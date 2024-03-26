@@ -8,7 +8,8 @@
 import sys
 import tkinter as tk
 import tkinter.ttk as ttk
-#from tkinter.constants import *
+#from tkinter.constants import * TODO see if useless
+from tkinter import messagebox
 import re
 import threading
 import os.path
@@ -273,7 +274,7 @@ class Toplevel1:
         self.Labelframe1.configure(highlightbackground="#d9d9d9")
         self.Labelframe1.configure(highlightcolor="#000000")
 
-        self.Button2 = tk.Button(self.Labelframe1)
+        self.Button2 = tk.Button(self.Labelframe1, command=self.on_click_etalonner)
         self.Button2.place(x=13, y=77, height=36, width=207, bordermode='ignore')
 
         self.Button2.configure(activebackground="#d9d9d9")
@@ -418,15 +419,44 @@ class Toplevel1:
         self.acquisition_thread.start()
 
 #Modifié=====
+        
+    def send_tare_command(self):
+        """
+        envoie 't' à l'arduino: la commande de tare
+        """
+        command = "t"
+        if not self.arduino:
+            return
+        self.arduino.write(bytearray(str(command), 'utf-8'))
+
+    def send_calib_command(self, A, B):
+        """
+        envoie 'c [Constante A] [Constante B]' à l'arduino: la commande d'étalonnage et ses constantes
+        """
+        command = f"c {A} {B}"
+        if not self.arduino:
+            return
+        self.arduino.write(bytearray(str(command), 'utf-8'))
 
     def on_click_tare(self):
-        pass
+        """Fonction qui est appelé lorsqu'on click sur 'tare'"""
+        self.send_tare_command()
+
+    def on_click_etalonner(self):
+        messagebox.showinfo("Étape 1", "Poser rien sur la balance")
+        #ampV1 = self.tensionAmp;
+        messagebox.showinfo("Étape 2", "Poser 1g sur la balance")
+        messagebox.showinfo("Étape 3", "Poser 2g sur la balance")
+        messagebox.showinfo("Étape 4", "Poser 10g sur la balance")
+        messagebox.showinfo("Étape 5", "Poser 20g sur la balance")
+        #ampV2 = self.tensionAmp;
+        #calibConstA = 20.0 / (ampV2 - ampV1);
+        #calibConstB = -ampV1 * calibConstA;
+        messagebox.showinfo("Étape 6", "Poser 50g sur la balance")
+        messagebox.showinfo("Étalonnage terminé", "L'étalonnage à été effectué avec success")
 
     def on_click_acqui(self):
-        if(self.acquisition_thread and self.acquisition_thread.is_alive()):
-            return # we can't start a new acquisition now, another is running
-        self.acquisition_thread = threading.Thread(target=self.acquisition)
-        self.acquisition_thread.start()
+        pass # useless
     
     def parse_arduino_msg(self, data_txt):
         """
