@@ -10,6 +10,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 #from tkinter.constants import * TODO see if useless
 from tkinter import messagebox
+from scipy.stats import linregress
 import re
 import threading
 import os.path
@@ -36,16 +37,16 @@ _TABBG2 = 'gray40'
 
 # units that can be used
 unit_names = [
-    "Gramme",
+    "g",
     "Lbs",
-    "Newton",
-    "Once"
+    "N",
+    "oz"
 ]
 # conversion rate in units per gram
 unit_rates = [
     1,
-    2.20462,
-    9.80665,
+    0.00220462,
+    0.00980665,
     0.035274
 ]
 # coins that can be used for counting or identifying
@@ -53,7 +54,7 @@ coin_names = [
     "1 cent",
     "2 cent",
     "10 cent",
-    "20 cent",
+    "25 cent",
     "1 dollar",
     "2 dollars"
 ]
@@ -113,7 +114,7 @@ class Toplevel1:
         self.masse = 0
         self.is_stable = False
 
-        ports_to_try = ['COM4', '/dev/cu.usbmodem1201']  # remplacer avec le port série nécessaire
+        ports_to_try = ['COM4', '/dev/cu.usbmodem1201', '/dev/cu.usbmodem11201']  # remplacer avec le port série nécessaire
         baud_rate = 115200
         self.arduino = None
         for port in ports_to_try:
@@ -201,17 +202,17 @@ class Toplevel1:
         self.Labelframe2.configure(highlightbackground="#d9d9d9")
         self.Labelframe2.configure(highlightcolor="#000000")
 
-        self.Buttonaqui = tk.Button(self.Labelframe2)#, command=self.onClickAcqui) TODO reenable this button
-        self.Buttonaqui.place(x=330, y=33, height=50, width=190, bordermode='ignore')
+        #self.Buttonaqui = tk.Button(self.Labelframe2)#, command=self.onClickAcqui) TODO reenable this button
+        #self.Buttonaqui.place(x=330, y=33, height=50, width=190, bordermode='ignore')
 
-        self.Buttonaqui.configure(activebackground="#d9d9d9")
-        self.Buttonaqui.configure(activeforeground="black")
-        self.Buttonaqui.configure(background="#d9d9d9")
-        self.Buttonaqui.configure(disabledforeground="#a3a3a3")
-        self.Buttonaqui.configure(foreground="#000000")
-        self.Buttonaqui.configure(highlightbackground="#d9d9d9")
-        self.Buttonaqui.configure(highlightcolor="#000000")
-        self.Buttonaqui.configure(text='''Acquisition''')
+        #self.Buttonaqui.configure(activebackground="#d9d9d9")
+        #self.Buttonaqui.configure(activeforeground="black")
+        #self.Buttonaqui.configure(background="#d9d9d9")
+        #self.Buttonaqui.configure(disabledforeground="#a3a3a3")
+        #self.Buttonaqui.configure(foreground="#000000")
+        #self.Buttonaqui.configure(highlightbackground="#d9d9d9")
+        #self.Buttonaqui.configure(highlightcolor="#000000")
+        #self.Buttonaqui.configure(text='''Acquisition''')
 
 
         #dexuière des deux listesbox ou la masse NOMBRE DE CHIFFRES APRES LA VIRGULE
@@ -226,7 +227,7 @@ class Toplevel1:
         self.Listbox2.configure(highlightcolor="#000000")
         self.Listbox2.configure(selectbackground="#d9d9d9")
         self.Listbox2.configure(selectforeground="black")
-        precision_options = [f"{opt} dec" for opt in range(MAX_PRECISION)]
+        precision_options = [f"{opt} dec" for opt in range(MAX_PRECISION+1)]
         for opt in precision_options:
             self.Listbox2.insert(tk.END, opt)
         def on_selectVirgule(e):
@@ -250,7 +251,7 @@ class Toplevel1:
         for unit in unit_names:
             self.Listbox1.insert(tk.END, unit)
         def on_selectPoids(e):
-            selection = self.Listbox2.curselection()
+            selection = self.Listbox1.curselection()
             if len(selection) == 1:
                 self.selected_unit_index = selection[0]
         self.Listbox1.bind("<<ListboxSelect>>", on_selectPoids)
@@ -262,7 +263,7 @@ class Toplevel1:
         self.Label2.configure(activeforeground="black")
         self.Label2.configure(compound='left')
         self.Label2.configure(disabledforeground="#a3a3a3")
-        self.Label2.configure(font="-family {Segoe UI} -size 12 -weight bold")
+        self.Label2.configure(font="-family {Segoe UI} -size 30 -weight bold")
         self.Label2.configure(foreground="#000506")
         self.Label2.configure(highlightbackground="#d9d9d9")
         self.Label2.configure(highlightcolor="#000506")
@@ -288,6 +289,11 @@ class Toplevel1:
         self.Button2.configure(highlightbackground="#d9d9d9")
         self.Button2.configure(highlightcolor="#000000")
         self.Button2.configure(text='''Étalonner''')
+        
+        self.calib_step = 0
+        self.calib_masses = [0, 1, 2, 10, 20, 50]
+        self.calib_v_amps = []
+        self.is_calibrating = False
 
         self.Button1 = tk.Button(self.Labelframe1, command=self.on_click_tare)
         self.Button1.place(x=13, y=33, height=36, width=207, bordermode='ignore')
@@ -301,39 +307,39 @@ class Toplevel1:
         self.Button1.configure(highlightcolor="#000000")
         self.Button1.configure(text='''Tarer''')
 
-        self.Labelframe5 = tk.LabelFrame(self.Labelframe1)
-        self.Labelframe5.place(x=10, y=285, height=95, width=220
-                , bordermode='ignore')
-        self.Labelframe5.configure(relief='groove')
-        self.Labelframe5.configure(foreground="#000000")
-        self.Labelframe5.configure(text='''Moyennage''')
-        self.Labelframe5.configure(background="#d9d9d9")
-        self.Labelframe5.configure(highlightbackground="#d9d9d9")
-        self.Labelframe5.configure(highlightcolor="#000000")
+        #self.Labelframe5 = tk.LabelFrame(self.Labelframe1)
+        #self.Labelframe5.place(x=10, y=285, height=95, width=220
+        #        , bordermode='ignore')
+        #self.Labelframe5.configure(relief='groove')
+        #self.Labelframe5.configure(foreground="#000000")
+        #self.Labelframe5.configure(text='''Moyennage''')
+        #self.Labelframe5.configure(background="#d9d9d9")
+        #self.Labelframe5.configure(highlightbackground="#d9d9d9")
+        #self.Labelframe5.configure(highlightcolor="#000000")
 
-        self.Message1 = tk.Message(self.Labelframe5)
-        self.Message1.place(x=10, y=20, height=39, width=200
-                , bordermode='ignore')
-        self.Message1.configure(background="#d9d9d9")
-        self.Message1.configure(foreground="#000000")
-        self.Message1.configure(highlightbackground="#d9d9d9")
-        self.Message1.configure(highlightcolor="#000000")
-        self.Message1.configure(padx="1")
-        self.Message1.configure(pady="1")
-        self.Message1.configure(text='''Entrer un nombre entier de mesures désirées pour moyenner la masse.''')
-        self.Message1.configure(width=200)
-
-        self.Entry1 = tk.Entry(self.Labelframe5)
-        self.Entry1.place(x=20, y=60, height=20, width=134, bordermode='ignore')
-        self.Entry1.configure(background="white")
-        self.Entry1.configure(disabledforeground="#a3a3a3")
-        self.Entry1.configure(font="TkFixedFont")
-        self.Entry1.configure(foreground="#000000")
-        self.Entry1.configure(highlightbackground="#d9d9d9")
-        self.Entry1.configure(highlightcolor="#000000")
-        self.Entry1.configure(insertbackground="#000000")
-        self.Entry1.configure(selectbackground="#d9d9d9")
-        self.Entry1.configure(selectforeground="black")
+        #self.Message1 = tk.Message(self.Labelframe5)
+        #self.Message1.place(x=10, y=20, height=39, width=200
+        #        , bordermode='ignore')
+        #self.Message1.configure(background="#d9d9d9")
+        #self.Message1.configure(foreground="#000000")
+        #self.Message1.configure(highlightbackground="#d9d9d9")
+        #self.Message1.configure(highlightcolor="#000000")
+        #self.Message1.configure(padx="1")
+        #self.Message1.configure(pady="1")
+        #self.Message1.configure(text='''Entrer un nombre entier de mesures désirées pour moyenner la masse.''')
+        #self.Message1.configure(width=200)
+#
+        #self.Entry1 = tk.Entry(self.Labelframe5)
+        #self.Entry1.place(x=20, y=60, height=20, width=134, bordermode='ignore')
+        #self.Entry1.configure(background="white")
+        #self.Entry1.configure(disabledforeground="#a3a3a3")
+        #self.Entry1.configure(font="TkFixedFont")
+        #self.Entry1.configure(foreground="#000000")
+        #self.Entry1.configure(highlightbackground="#d9d9d9")
+        #self.Entry1.configure(highlightcolor="#000000")
+        #self.Entry1.configure(insertbackground="#000000")
+        #self.Entry1.configure(selectbackground="#d9d9d9")
+        #self.Entry1.configure(selectforeground="black")
 
         self.Labelframe4 = tk.LabelFrame(self.Labelframe1)
         self.Labelframe4.place(x=10, y=120, height=165, width=220
@@ -389,7 +395,7 @@ class Toplevel1:
         self.Label2_1.configure(activeforeground="black")
         self.Label2_1.configure(compound='left')
         self.Label2_1.configure(disabledforeground="#a3a3a3")
-        self.Label2_1.configure(font="-family {Segoe UI} -size 12 -weight bold")
+        self.Label2_1.configure(font="-family {Segoe UI} -size 25 -weight bold")
         self.Label2_1.configure(foreground="#000506")
         self.Label2_1.configure(highlightbackground="#d9d9d9")
         self.Label2_1.configure(highlightcolor="#000506")
@@ -418,8 +424,8 @@ class Toplevel1:
         self.Label1.configure(text='''Balance app''')
 
         
-        self.acquisition_thread = threading.Thread(target=self.read_data_and_update) # used to fetch data in the background
-        self.acquisition_thread.start()
+        self.reading_thread = threading.Thread(target=self.read_data_and_update) # used to fetch data in the background
+        self.reading_thread.start()
 
 #Modifié=====
         
@@ -427,18 +433,19 @@ class Toplevel1:
         """
         envoie 't' à l'arduino: la commande de tare
         """
-        command = "t"
+        command = "t\n"
         if not self.arduino:
             return
         self.arduino.write(bytearray(str(command), 'utf-8'))
 
     def send_calib_command(self, A, B):
         """
-        envoie 'c [Constante A] [Constante B]' à l'arduino: la commande d'étalonnage et ses constantes
+        envoie 'e [Constante A] [Constante B]' à l'arduino: la commande d'étalonnage et ses constantes
         """
-        command = f"c {A} {B}"
+        command = f"e {A:.5f} {B:.5f}\n"
         if not self.arduino:
             return
+        print(command)
         self.arduino.write(bytearray(str(command), 'utf-8'))
 
     def on_click_tare(self):
@@ -446,29 +453,25 @@ class Toplevel1:
         self.send_tare_command()
 
     def on_click_etalonner(self):
-        masses = [0, 1, 2, 10, 20, 50]
-        v_amps = []
-        for i, mass in enumerate(masses):
-            if(i==0):
-                mass_str = "rien"
+        if self.is_calibrating:
+            # prendre mesure
+            self.calib_v_amps.append(self.v_amp)
+            if (self.calib_step < len(self.calib_masses) - 1):
+                self.calib_step += 1
             else:
-                mass_str = f"{mass}g"
-            messagebox.showinfo(f"Étape {i}", f"Poser {mass_str} sur la balance")
-            v_amps.append(self.v_amp)
+                A, B, r_value, p_value, std_err = linregress(self.calib_v_amps, self.calib_masses)
 
-        # créer un graphique
-        plt.plot(masses, v_amps)
-        plt.xlabel('masses')
-        plt.ylabel('tensions')
-        plt.title('étalonnage')
-        plt.show()
+                self.send_calib_command(A, B)
+                print(f"A: {A}, B: {B}")
+                self.is_calibrating = False
+        else:
+            self.is_calibrating = True
+            self.calib_step = 0
+            self.calib_v_amps = []
 
-        # calulate with 0g and 20g
-        A = 20.0 / (v_amps[4] - v_amps[0])
-        B = -v_amps[0] * A
-        self.send_calib_command(A, B)
-        messagebox.showinfo("Étalonnage terminé", "L'étalonnage à été effectué avec success")
-
+    def on_click_moyennage_ok(self):
+        pass # useless
+    
     def on_click_acqui(self):
         pass # useless
     
@@ -479,29 +482,51 @@ class Toplevel1:
                  "taredMass": masse calculé par l'arduino. taré et étalonné
                     "stable":True si le regulateur est stable}
         """
-        pattern = r"v_amp:(.+),v_pos:(.+),stable:(.+)"
+        pattern = r"v_amp:(.+),v_pos:(.+),taredMass:(.+),stable:(.+)"
         match = re.search(pattern, data_txt)
 
         # If match is found, extract values and return them
         if match:
-            v_amp = float(match.group(1))
-            v_pos = float(match.group(2))
-            tared_mass = float(match.group(3))
-            stable = match.group(3)=='1'
-            return {"v_amp":v_amp, "v_pos":v_pos, "taredMass":tared_mass, "stable":stable}
+            try:
+                v_amp = float(match.group(1))
+                v_pos = float(match.group(2))
+                tared_mass = float(match.group(3))
+                stable = match.group(4)=='1'
+                return {"v_amp":v_amp, "v_pos":v_pos, "taredMass":tared_mass, "stable":stable}
+            except:
+                pass
+        print(f"Message unreadable: {data_txt}")
         return None
 
     def read_latest_line(self):
         """
         Lit toutes les données provenantes de l'arduino et retourne la dernière ligne.
         Utile si l'arduino envoie les données plus rapidement que le PC peut les lire.
+        Peut retourner None.
         """
-        last_line = None
-        data = self.arduino.read_all().decode().strip()  # Read all available data and decode it
-        if data:
-            lines = data.split('\n')  # Split data into lines
-            last_line = lines[-1]  # Get the last line
-        return last_line
+        data = self.arduino.readline().decode().strip()
+        return data
+    
+    def read_data(self):
+        """
+        Reads the next line from the arduino
+        """
+        while(True):
+            if self.arduino:
+                data_txt = self.read_latest_line()
+                if not data_txt:
+                    continue
+            else:
+                # PLACEHOLDER
+                data_txt = "v_amp:23.42,v_pos:2.322,taredMass:13.55,stable:0"
+            data = self.parse_arduino_msg(data_txt)
+            if not data:
+                    continue
+            self.v_amp = data["v_amp"]
+            self.v_pos = data["v_pos"]
+            self.masse = data["taredMass"]
+            self.is_stable = data["stable"]
+            return
     
     def read_data_and_update(self):
         """
@@ -512,24 +537,9 @@ class Toplevel1:
         self.x_temps = []
         start_t = time.time()
         while(True):
-            if self.arduino:
-                data_txt = self.read_latest_line()
-                data = self.parse_arduino_msg(data_txt)
-            else:
-                # PLACEHOLDER
-                data = {"v_amp":2.45,"v_pos":1.23,"taredMass":32.3,"stable":True}
-            if not data:
-                 continue
-            self.v_amp = data["v_amp"]
-            self.v_pos = data["v_pos"]
-            self.masse = data["taredMass"]
-            self.is_stable = data["stable"]
-            if self.is_stable is True:
-                    self.Label2.configure(background="green")
-            else:
-                    self.Label2.configure(background="red")
-            self.Label2.configure(text=str(self.masse))#modifié
-            
+            # update data fields from arduino
+            self.read_data()
+
             t = time.time() - start_t
             self.x_temps.append(t)
             force = float(self.masse)*9.806
@@ -552,10 +562,25 @@ class Toplevel1:
                         self.Label2_1.configure(background="red")
             
             # unitées
+            if self.is_stable is True:
+                    self.Label2.configure(background="green")
+            else:
+                    self.Label2.configure(background="red")
+            unit_str = unit_names[self.selected_unit_index]
             mass_converted = self.masse * unit_rates[self.selected_unit_index]
-            self.Label2.configure(text=str(round(mass_converted, self.selected_precision)))
+            self.Label2.configure(text=f"{round(mass_converted, self.selected_precision)} {unit_str}")
 
             self.update_graph()
+
+            if(self.is_calibrating):
+                mass = self.calib_masses[self.calib_step]
+                self.Button2.configure(text=f"Mesurer {mass}g")
+                if(self.is_stable):
+                    self.Button2.config(state=tk.NORMAL)
+                else:
+                    self.Button2.config(state=tk.DISABLED)
+            else:
+                self.Button2.configure(text="Étalonner")
 
 
     def update_graph(self):

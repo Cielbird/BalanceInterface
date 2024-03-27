@@ -1,5 +1,5 @@
 # Messages Arduino-PC
-`v_amp:[taredMass],v_pos:[tension],mass:[mass],stable:[isStable]`
+`v_amp:[taredMass],v_pos:[tension],taredMass:[mass],stable:[isStable]`
 - `v_amp` est la tension de l'ampi qui indique le courrant
 - `v_amp` est moyenné par l'arduino
 - `taredMass` est simplement `A*v_amp + B - tare` avec les constantes d'étalonnage `A` et `B` 
